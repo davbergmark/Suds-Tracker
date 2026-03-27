@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUDS Tracker</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React and ReactDOM CDNs (Must be loaded first) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Prop-Types (Required by Recharts UMD) -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    
+    <!-- Recharts (Loading a specific version compatible with React 18 UMD) -->
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    
+    <!-- Babel for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { 
+            font-family: 'Inter', sans-serif; 
+            overscroll-behavior-y: contain;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            background: #4f46e5;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 4px solid white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = Recharts;
+
+        const App = () => {
+            const [sudsValue, setSudsValue] = useState(50);
+            const [logs, setLogs] = useState([]);
+            const [note, setNote] = useState('');
+            const [view, setView] = useState('entry');
+
+            // Initialize Lucide icons on every render/view change
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            });
+
+            useEffect(() => {
+                const savedLogs = localStorage.getItem('suds_logs');
+                if (savedLogs) {
+                    try {
+                        setLogs(JSON.parse(savedLogs));
+                    } catch (e) {
+                        console.error("Failed to load logs", e);
+                    }
+                }
+            }, []);
+
+            useEffect(() => {
+                localStorage.setItem('suds_logs', JSON.stringify(logs));
+            }, [logs]);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const newEntry = {
+                    id: Date.now(),
+                    value: parseInt(sudsValue),
+                    timestamp: new Date().toISOString(),
+                    note: note.trim()
+                };
+                setLogs([newEntry, ...logs]);
+                setNote('');
+                setSudsValue(50);
+            };
+
+            const deleteEntry = (id) => {
+                // Using a non-blocking confirmation would be better, but standard confirm is used here
+                if (window.confirm('Delete this entry?')) {
+                    setLogs(logs.filter(log => log.id !== id));
+                }
+            };
+
+            const getSudsColor = (val) => {
+                if (val < 30) return 'text-emerald-500';
+                if (val < 60) return 'text-amber-500';
+                if (val < 85) return 'text-orange-500';
+                return 'text-rose-500';
+            };
+
+            const getSudsBg = (val) => {
+                if (val < 30) return 'bg-emerald-50 border-emerald-100';
+                if (val < 60) return 'bg-amber-50 border-amber-100';
+                if (val < 85) return 'bg-orange-50 border-orange-100';
+                return 'bg-rose-50 border-rose-100';
+            };
+
+            const chartData = useMemo(() => {
+                return [...logs]
+                    .slice(0, 20)
+                    .reverse()
+                    .map(log => ({
+                        time: new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        value: log.value
+                    }));
+            }, [logs]);
+
+            const stats = useMemo(() => {
+                if (logs.length === 0) return { avg: 0, peak: 0, count: 0 };
+                const sum = logs.reduce((a, b) => a + b.value, 0);
+                const peak = Math.max(...logs.map(l => l.value));
+                return {
+                    avg: Math.round(sum / logs.length),
+                    peak,
+                    count: logs.length
+                };
+            }, [logs]);
+
+            return (
+                <div className="min-h-screen flex flex-col max-w-md mx-auto bg-white shadow-xl min-h-[100dvh]">
+                    <header className="bg-white border-b sticky top-0 z-10 px-6 py-4 flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
+                                <i data-lucide="trending-up" className="w-5 h-5"></i>
+                            </div>
+                            <h1 className="text-xl font-extrabold tracking-tight">SUDS</h1>
+                        </div>
+                        <div className="flex bg-slate-100 rounded-xl p-1">
+                            <button 
+                                onClick={() => setView('entry')} 
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${view === 'entry' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                            >
+                                Log
+                            </button>
+                            <button 
+                                onClick={() => setView('history')} 
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${view === 'history' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                            >
+                                History
+                            </button>
+                        </div>
+                    </header>
+
+                    <main className={`flex-1 overflow-y-auto custom-scrollbar p-6 ${logs.length > 0 ? 'pb-40' : ''}`}>
+                        {view === 'entry' ? (
+                            <div className="space-y-8 animate-in fade-in duration-500">
+                                <div className={`p-10 rounded-[2.5rem] border-2 text-center transition-all duration-500 ${getSudsBg(sudsValue)}`}>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Current Distress</p>
+                                    <div className={`text-8xl font-black mb-4 tabular-nums ${getSudsColor(sudsValue)}`}>{sudsValue}</div>
+                                    <p className="font-bold text-slate-700 text-lg">
+                                        {sudsValue <= 20 && "Calm / Relaxed"}
+                                        {sudsValue > 20 && sudsValue <= 40 && "Mildly Annoyed"}
+                                        {sudsValue > 40 && sudsValue <= 60 && "Uncomfortable"}
+                                        {sudsValue > 60 && sudsValue <= 80 && "High Distress"}
+                                        {sudsValue > 80 && "Extreme / Panic"}
+                                    </p>
+                                </div>
+
+                                <form onSubmit={handleSubmit} className="space-y-8">
+                                    <div className="space-y-4">
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="100" 
+                                            value={sudsValue} 
+                                            onChange={(e) => setSudsValue(e.target.value)} 
+                                            className="w-full h-3 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600 border border-slate-200" 
+                                        />
+                                        <div className="flex justify-between text-[10px] font-black text-slate-400 px-1 uppercase tracking-tighter">
+                                            <span>0 (Calm)</span>
+                                            <span>50</span>
+                                            <span>100 (Peak)</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Context / Notes</label>
+                                        <textarea 
+                                            value={note} 
+                                            onChange={(e) => setNote(e.target.value)} 
+                                            placeholder="What is happening right now?" 
+                                            className="w-full p-5 bg-slate-50 border border-slate-200 rounded-3xl focus:ring-4 focus:ring-indigo-50 outline-none transition-all resize-none h-32 text-sm placeholder:text-slate-300" 
+                                        />
+                                    </div>
+
+                                    <button 
+                                        type="submit" 
+                                        className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-transform flex items-center justify-center gap-3"
+                                    >
+                                        <i data-lucide="plus-circle" className="w-5 h-5"></i>
+                                        Log Entry
+                                    </button>
+                                </form>
+                            </div>
+                        ) : (
+                            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm h-64">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Trend Map</h3>
+                                        <i data-lucide="activity" className="w-4 h-4 text-slate-300"></i>
+                                    </div>
+                                    <div className="h-40 w-full">
+                                        {logs.length > 1 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <LineChart data={chartData}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                    <XAxis dataKey="time" hide />
+                                                    <YAxis domain={[0, 100]} hide />
+                                                    <Tooltip 
+                                                        contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px'}}
+                                                        labelStyle={{display: 'none'}}
+                                                    />
+                                                    <Line 
+                                                        type="monotone" 
+                                                        dataKey="value" 
+                                                        stroke="#4f46e5" 
+                                                        strokeWidth={4} 
+                                                        dot={{ fill: '#4f46e5', r: 4, strokeWidth: 2, stroke: '#fff' }} 
+                                                        activeDot={{ r: 6, strokeWidth: 0 }}
+                                                    />
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center text-slate-300 text-[10px] font-black uppercase italic tracking-widest">
+                                                Log more for analysis
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 pb-24">
+                                    <div className="flex justify-between items-center px-2">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">History</h3>
+                                        <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{logs.length} Total</span>
+                                    </div>
+                                    {logs.map(log => (
+                                        <div key={log.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 flex gap-5 shadow-sm group">
+                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shrink-0 shadow-inner ${getSudsBg(log.value)} ${getSudsColor(log.value)}`}>
+                                                {log.value}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tight">
+                                                            {new Date(log.timestamp).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                                                        </p>
+                                                        <p className="text-sm font-bold text-slate-800">
+                                                            {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </p>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => deleteEntry(log.id)} 
+                                                        className="text-slate-200 hover:text-rose-500 p-2 transition-colors"
+                                                    >
+                                                        <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                    </button>
+                                                </div>
+                                                {log.note && (
+                                                    <p className="mt-3 text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-50 italic">
+                                                        "{log.note}"
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {logs.length > 0 && (
+                        <footer className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-[calc(448px-3rem)] bg-slate-900/95 backdrop-blur-md text-white rounded-[2.5rem] p-6 flex justify-around items-center shadow-2xl border border-white/10 z-20">
+                            <div className="text-center">
+                                <p className="text-[9px] uppercase opacity-40 font-black tracking-widest mb-1">Average</p>
+                                <p className="text-xl font-black tabular-nums">{stats.avg}</p>
+                            </div>
+                            <div className="w-px h-8 bg-white/10" />
+                            <div className="text-center">
+                                <p className="text-[9px] uppercase opacity-40 font-black tracking-widest mb-1">Peak</p>
+                                <p className="text-xl font-black tabular-nums text-rose-400">{stats.peak}</p>
+                            </div>
+                        </footer>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
