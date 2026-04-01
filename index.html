@@ -64,6 +64,8 @@
             const [logs, setLogs] = useState([]);
             const [note, setNote] = useState('');
             const [view, setView] = useState('entry');
+            const [recentLoggedValue, setRecentLoggedValue] = useState(null);
+            const [exerciseValue, setExerciseValue] = useState(null);
             const getMonthKey = (timestamp) => {
                 const date = new Date(timestamp);
                 return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -103,13 +105,15 @@
 
             const handleSubmit = (e) => {
                 e.preventDefault();
+                const loggedValue = parseInt(sudsValue);
                 const newEntry = {
                     id: Date.now(),
-                    value: parseInt(sudsValue),
+                    value: loggedValue,
                     timestamp: new Date().toISOString(),
                     note: note.trim()
                 };
                 setLogs([newEntry, ...logs]);
+                setRecentLoggedValue(loggedValue);
                 setNote('');
                 setSudsValue(50);
             };
@@ -295,7 +299,8 @@
                 }, {});
             }, [selectedMonthLogs]);
 
-            const calmingExercise = useMemo(() => getCalmingExercise(Number(sudsValue)), [sudsValue]);
+            const activeExerciseValue = exerciseValue ?? Number(sudsValue);
+            const calmingExercise = useMemo(() => getCalmingExercise(activeExerciseValue), [activeExerciseValue]);
             const [currentStepIndex, setCurrentStepIndex] = useState(0);
             const [timeLeft, setTimeLeft] = useState(calmingExercise.steps[0].duration);
             const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -373,6 +378,11 @@
                 }
             };
 
+            const openExerciseForValue = (value) => {
+                setExerciseValue(value);
+                setView('exercise');
+            };
+
             return (
                 <div className="min-h-screen flex flex-col max-w-md mx-auto bg-white shadow-xl min-h-[100dvh]">
                     <header className="bg-white border-b sticky top-0 z-10 px-6 py-4 flex justify-between items-center">
@@ -415,7 +425,7 @@
 
                                 <button
                                     type="button"
-                                    onClick={() => setView('exercise')}
+                                    onClick={() => openExerciseForValue(Number(sudsValue))}
                                     className="w-full py-4 px-5 bg-slate-900 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-slate-200 active:scale-95 transition-transform flex items-center justify-center gap-3"
                                 >
                                     <i data-lucide="heart" className="w-5 h-5"></i>
@@ -457,6 +467,30 @@
                                         Log Entry
                                     </button>
                                 </form>
+
+                                {recentLoggedValue !== null && (
+                                    <div className="bg-indigo-50 border border-indigo-100 rounded-[2rem] p-5 space-y-4">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Entry Saved</p>
+                                                <p className="text-base font-bold text-slate-800">
+                                                    Your last log was <span className="text-indigo-600">{recentLoggedValue}</span>.
+                                                </p>
+                                            </div>
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black shadow-inner ${getSudsBg(recentLoggedValue)} ${getSudsColor(recentLoggedValue)}`}>
+                                                {recentLoggedValue}
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => openExerciseForValue(recentLoggedValue)}
+                                            className="w-full py-4 px-5 bg-indigo-600 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-transform flex items-center justify-center gap-3"
+                                        >
+                                            <i data-lucide="sparkles" className="w-5 h-5"></i>
+                                            View Calming Exercise For {recentLoggedValue}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ) : view === 'history' ? (
                             <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
@@ -579,15 +613,15 @@
                             </div>
                         ) : (
                             <div className="space-y-6 animate-in fade-in duration-300">
-                                <div className={`p-8 rounded-[2.5rem] border-2 ${getSudsBg(sudsValue)}`}>
+                                <div className={`p-8 rounded-[2.5rem] border-2 ${getSudsBg(activeExerciseValue)}`}>
                                     <div className="flex items-start justify-between gap-4 mb-6">
                                         <div>
                                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Recommended Support</p>
                                             <h2 className="text-3xl font-black text-slate-900">{calmingExercise.title}</h2>
                                             <p className="text-sm font-bold text-slate-500 mt-2">{calmingExercise.range}</p>
                                         </div>
-                                        <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-2xl font-black shadow-inner ${getSudsBg(sudsValue)} ${getSudsColor(sudsValue)}`}>
-                                            {sudsValue}
+                                        <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-2xl font-black shadow-inner ${getSudsBg(activeExerciseValue)} ${getSudsColor(activeExerciseValue)}`}>
+                                            {activeExerciseValue}
                                         </div>
                                     </div>
 
